@@ -7,6 +7,8 @@ export interface SpeakOptions {
   onError?: (err: unknown) => void;
 }
 
+let speechRequestId = 0;
+
 /**
  * Get available browser voices for speech synthesis
  */
@@ -17,12 +19,48 @@ export function getAvailableVoices(): SpeechSynthesisVoice[] {
   return window.speechSynthesis.getVoices();
 }
 
-/**
- * Speak text in specified language ('hi-IN' | 'en-US') with native voice selection
- */
+function getVoiceForLanguage(
+  voices: SpeechSynthesisVoice[],
+  language: string
+): SpeechSynthesisVoice | undefined {
+  const normalizedLanguage = language.toLowerCase();
+  const languagePrefix = normalizedLanguage.split('-')[0];
+
+  return (
+    voices.find((voice) => voice.lang.toLowerCase() === normalizedLanguage) ||
+    voices.find((voice) => voice.lang.toLowerCase().split('-')[0] === languagePrefix)
+  );
+}
+
+function waitForVoices(): Promise<SpeechSynthesisVoice[]> {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    return Promise.resolve([]);
+  }
+
+  const synthesis = window.speechSynthesis;
+  const voices = synthesis.getVoices();
+  if (voices.length > 0) {
+    return Promise.resolve(voices);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      synthesis.removeEventListener('voiceschanged', finish);
+      resolve(synthesis.getVoices());
+    };
+
+    synthesis.addEventListener('voiceschanged', finish, { once: true });
+    window.setTimeout(finish, 1500);
+  });
+}
+
+/** Speak text using a voice that matches the requested language. */
 export function speakText(
   text: string,
-  lang: 'hi-IN' | 'en-US',
+  lang: string,
   options: SpeakOptions = {}
 ): SpeechSynthesisUtterance | null {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -43,20 +81,6 @@ export function speakText(
   utterance.rate = options.rate ?? 0.95; // Slightly natural pace
   utterance.volume = options.volume ?? 1.0;
 
-  const voices = window.speechSynthesis.getVoices();
-  const langPrefix = lang.split('-')[0].toLowerCase(); // 'hi' or 'en'
-  
-  // Find exact voice match (e.g. hi-IN or en-US), or matching language prefix, or voice name
-  const matchingVoice = 
-    voices.find(v => v.lang.toLowerCase() === lang.toLowerCase()) ||
-    voices.find(v => v.lang.toLowerCase().startsWith(langPrefix)) ||
-    voices.find(v => v.name.toLowerCase().includes(langPrefix === 'hi' ? 'hindi' : 'english')) ||
-    voices.find(v => v.lang.includes(langPrefix.toUpperCase()));
-
-  if (matchingVoice) {
-    utterance.voice = matchingVoice;
-  }
-
   utterance.onstart = () => {
     options.onStart?.();
   };
@@ -71,7 +95,19 @@ export function speakText(
     options.onError?.(e);
   };
 
-  window.speechSynthesis.speak(utterance);
+  const synthesis = window.speechSynthesis;
+  const requestId = ++speechRequestId;
+  void waitForVoices().then((voices) => {
+    if (requestId !== speechRequestId) return;
+
+    const matchingVoice = getVoiceForLanguage(voices, lang);
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
+    }
+
+    synthesis.speak(utterance);
+  });
+
   return utterance;
 }
 
@@ -80,6 +116,7 @@ export function speakText(
  */
 export function stopSpeech(): void {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    speechRequestId += 1;
     window.speechSynthesis.cancel();
   }
 }

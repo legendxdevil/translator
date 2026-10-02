@@ -17,7 +17,7 @@ const barlow = Barlow({
 
 export const metadata: Metadata = {
   title: "AuraTranslate — Hinglish & Hindi to English AI Translator",
-  description: "Translate Hinglish (Roman Hindi) and Devanagari Hindi into flawless English with dual voice text-to-speech audio in native accents.",
+  description: "Translate between languages with multilingual text-to-speech support.",
   keywords: ["Hinglish translator", "Hindi to English", "Devanagari translator", "Hindi Text to Speech", "AI translator"],
 };
 

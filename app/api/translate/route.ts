@@ -1,41 +1,45 @@
 import { NextResponse } from 'next/server';
-import { detectScript } from '@/lib/detectScript';
 
-// Primary transliteration using Google Input Tools API (Roman -> Devanagari Hindi)
-async function transliterateToHindi(text: string): Promise<string> {
+const SUPPORTED_LANGUAGES = new Set([
+  'auto', 'en', 'hi', 'es', 'fr', 'de', 'bn', 'mr', 'ta', 'te', 'pa',
+  'ar', 'ja', 'ko', 'zh-CN', 'ru', 'pt', 'it', 'ur', 'gu', 'kn', 'ml'
+]);
+
+async function transliterateHindi(text: string): Promise<string> {
+  if (!/[A-Za-z]/.test(text)) return text;
+
   try {
     const url = `https://inputtools.google.com/request?text=${encodeURIComponent(text)}&itc=hi-t-i0-und&num=1`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-      },
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
       next: { revalidate: 3600 }
     });
-    
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data[0] === 'SUCCESS' && data[1]?.[0]?.[1]?.[0]) {
-        return data[1][0][1][0];
-      }
+    const data = await response.json();
+
+    if (response.ok && data?.[0] === 'SUCCESS' && data[1]?.[0]?.[1]?.[0]) {
+      return data[1][0][1][0];
     }
   } catch (error) {
-    console.warn('Google Input Tools transliteration failed, using fallback:', error);
+    console.warn('Hindi transliteration failed, using original input:', error);
   }
+
   return text;
 }
 
-// Translate Hindi (Devanagari) -> English
-async function translateHindiToEnglish(hindiText: string): Promise<string> {
-  // Method 1: Google Translate GTX endpoint
+async function translateText(
+  text: string,
+  sourceLanguage: string,
+  targetLanguage: string
+): Promise<string> {
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(hindiText)}`;
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sourceLanguage)}&tl=${encodeURIComponent(targetLanguage)}&dt=t&q=${encodeURIComponent(text)}`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
       },
       next: { revalidate: 3600 }
     });
-    
+
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data[0])) {
@@ -54,7 +58,7 @@ async function translateHindiToEnglish(hindiText: string): Promise<string> {
   // Method 2: google-translate-api-x fallback
   try {
     const translate = (await import('google-translate-api-x')).default;
-    const result = await translate(hindiText, { to: 'en' });
+    const result = await translate(text, { from: sourceLanguage === 'auto' ? undefined : sourceLanguage, to: targetLanguage });
     return result.text;
   } catch (error) {
     console.error('All translation attempts failed:', error);
@@ -66,6 +70,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const text = (body.text || '').trim();
+    const sourceLanguage = typeof body.sourceLanguage === 'string' ? body.sourceLanguage : 'auto';
+    const targetLanguage = typeof body.targetLanguage === 'string' ? body.targetLanguage : 'en';
 
     if (!text) {
       return NextResponse.json(
@@ -74,28 +80,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const scriptType = detectScript(text);
-    let devanagariHindi = '';
-    let englishTranslation = '';
-
-    if (scriptType === 'devanagari') {
-      // Input is already Devanagari Hindi
-      devanagariHindi = text;
-      englishTranslation = await translateHindiToEnglish(devanagariHindi);
-    } else {
-      // Input is Roman script (Hinglish or English)
-      devanagariHindi = await transliterateToHindi(text);
-      
-      // If transliteration returned original text (e.g. pure English or unknown), translate directly
-      englishTranslation = await translateHindiToEnglish(
-        devanagariHindi !== text ? devanagariHindi : text
-      );
+    if (!SUPPORTED_LANGUAGES.has(sourceLanguage) || !SUPPORTED_LANGUAGES.has(targetLanguage)) {
+      return NextResponse.json({ error: 'Unsupported source or target language' }, { status: 400 });
     }
 
+    const sourceText = sourceLanguage === 'hi' ? await transliterateHindi(text) : text;
+    const translatedText = sourceLanguage === targetLanguage
+      ? sourceText
+      : await translateText(sourceText, sourceLanguage, targetLanguage);
+
     return NextResponse.json({
-      hindi: devanagariHindi || text,
-      english: englishTranslation || text,
-      detectedScript: scriptType === 'devanagari' ? 'hindi' : 'hinglish',
+      source: sourceText,
+      translation: translatedText || sourceText,
+      hindi: sourceText,
+      english: translatedText || sourceText,
+      sourceLanguage,
+      targetLanguage,
       originalInput: text
     });
   } catch (error: unknown) {

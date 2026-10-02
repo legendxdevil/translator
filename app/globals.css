@@ -17,6 +17,100 @@ body {
   overflow-x: hidden;
 }
 
+.light-theme body {
+  background-color: #eef4ff;
+  color: #172033;
+}
+
+.light-theme .bg-slate-950 {
+  background-color: #eef4ff;
+}
+
+.light-theme .bg-slate-950\/60,
+.light-theme .bg-slate-950\/70 {
+  background-color: rgba(255, 255, 255, 0.82);
+}
+
+.light-theme .liquid-glass {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: rgba(100, 116, 139, 0.24);
+  box-shadow: 0 8px 32px rgba(71, 85, 105, 0.12);
+}
+
+.light-theme .liquid-glass::before,
+.light-theme .liquid-glass-strong::before {
+  opacity: 0.45;
+}
+
+.light-theme .liquid-glass-strong {
+  background: rgba(248, 250, 252, 0.78);
+  border-color: rgba(100, 116, 139, 0.28);
+  box-shadow: 0 20px 50px rgba(71, 85, 105, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.light-theme .bg-slate-950\/70,
+.light-theme .bg-slate-950\/60,
+.light-theme .bg-slate-950\/55,
+.light-theme .bg-slate-900\/80 {
+  background-color: rgba(255, 255, 255, 0.76);
+}
+
+.light-theme .text-white,
+.light-theme .text-slate-100,
+.light-theme .text-slate-200 {
+  color: #172033;
+}
+
+.light-theme .text-transparent {
+  color: #172033;
+  -webkit-text-fill-color: #172033;
+}
+
+.light-theme .text-slate-300,
+.light-theme .text-slate-400 {
+  color: #526079;
+}
+
+.light-theme .text-slate-500,
+.light-theme .text-slate-600 {
+  color: #718096;
+}
+
+.light-theme .border-white\/10,
+.light-theme .border-white\/15,
+.light-theme .border-white\/5 {
+  border-color: rgba(100, 116, 139, 0.22);
+}
+
+.light-theme textarea,
+.light-theme select {
+  color: #172033;
+  background-color: rgba(255, 255, 255, 0.82);
+  border-color: rgba(100, 116, 139, 0.3);
+}
+
+.light-theme textarea:focus,
+.light-theme select:focus {
+  background-color: #ffffff;
+}
+
+.light-theme option {
+  background-color: #ffffff;
+  color: #172033;
+}
+
+.light-theme .bg-slate-800 {
+  background-color: #dbe4f0;
+}
+
+.light-theme .text-slate-500 {
+  color: #526079;
+}
+
+.light-theme textarea::placeholder {
+  color: #718096;
+}
+
 /* Custom Liquid Glass utilities */
 .liquid-glass {
   background: rgba(255, 255, 255, 0.06);
@@ -33,12 +127,10 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0.2) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.35) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0.2) 100%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -60,12 +152,10 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.45) 0%,
-    rgba(147, 51, 234, 0.25) 50%,
-    rgba(59, 130, 246, 0.35) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(147, 51, 234, 0.25) 50%,
+      rgba(59, 130, 246, 0.35) 100%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -82,27 +172,48 @@ body {
 
 /* Audio wave animation bars */
 @keyframes audio-wave {
-  0%, 100% { height: 4px; }
-  50% { height: 18px; }
+
+  0%,
+  100% {
+    height: 4px;
+  }
+
+  50% {
+    height: 18px;
+  }
 }
 
-.animate-audio-bar-1 { animation: audio-wave 0.8s infinite ease-in-out; }
-.animate-audio-bar-2 { animation: audio-wave 1.1s infinite ease-in-out 0.15s; }
-.animate-audio-bar-3 { animation: audio-wave 0.7s infinite ease-in-out 0.3s; }
-.animate-audio-bar-4 { animation: audio-wave 1.0s infinite ease-in-out 0.1s; }
+.animate-audio-bar-1 {
+  animation: audio-wave 0.8s infinite ease-in-out;
+}
+
+.animate-audio-bar-2 {
+  animation: audio-wave 1.1s infinite ease-in-out 0.15s;
+}
+
+.animate-audio-bar-3 {
+  animation: audio-wave 0.7s infinite ease-in-out 0.3s;
+}
+
+.animate-audio-bar-4 {
+  animation: audio-wave 1.0s infinite ease-in-out 0.1s;
+}
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.4);
 }

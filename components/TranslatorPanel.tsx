@@ -30,6 +30,31 @@ interface HistoryItem {
   timestamp: string;
 }
 
+const LANGUAGE_OPTIONS = [
+  { code: 'auto', label: 'Auto-detect', locale: 'en-US' },
+  { code: 'en', label: 'English', locale: 'en-US' },
+  { code: 'hi', label: 'Hindi', locale: 'hi-IN' },
+  { code: 'es', label: 'Spanish', locale: 'es-ES' },
+  { code: 'fr', label: 'French', locale: 'fr-FR' },
+  { code: 'de', label: 'German', locale: 'de-DE' },
+  { code: 'bn', label: 'Bengali', locale: 'bn-IN' },
+  { code: 'mr', label: 'Marathi', locale: 'mr-IN' },
+  { code: 'ta', label: 'Tamil', locale: 'ta-IN' },
+  { code: 'te', label: 'Telugu', locale: 'te-IN' },
+  { code: 'pa', label: 'Punjabi', locale: 'pa-IN' },
+  { code: 'ar', label: 'Arabic', locale: 'ar-SA' },
+  { code: 'ja', label: 'Japanese', locale: 'ja-JP' },
+  { code: 'ko', label: 'Korean', locale: 'ko-KR' },
+  { code: 'zh-CN', label: 'Chinese', locale: 'zh-CN' },
+  { code: 'ru', label: 'Russian', locale: 'ru-RU' },
+  { code: 'pt', label: 'Portuguese', locale: 'pt-PT' },
+  { code: 'it', label: 'Italian', locale: 'it-IT' },
+  { code: 'ur', label: 'Urdu', locale: 'ur-PK' },
+  { code: 'gu', label: 'Gujarati', locale: 'gu-IN' },
+  { code: 'kn', label: 'Kannada', locale: 'kn-IN' },
+  { code: 'ml', label: 'Malayalam', locale: 'ml-IN' },
+];
+
 const SAMPLE_PRESETS = [
   { label: 'aap kaise ho', text: 'aap kaise ho' },
   { label: 'aaj mausam bahut accha hai', text: 'aaj mausam bahut accha hai' },
@@ -42,12 +67,14 @@ export function TranslatorPanel() {
   const [input, setInput] = useState('');
   const [hindiOutput, setHindiOutput] = useState('');
   const [englishOutput, setEnglishOutput] = useState('');
+  const [targetLanguage, setTargetLanguage] = useState('en');
+  const [sourceLanguage, setSourceLanguage] = useState('auto');
   const [detectedScript, setDetectedScript] = useState<'hinglish' | 'hindi' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // TTS State
-  const [speakingTarget, setSpeakingTarget] = useState<'hindi' | 'english' | null>(null);
+  const [speakingTarget, setSpeakingTarget] = useState<'hindi' | 'translation' | null>(null);
   const [ttsRate, setTtsRate] = useState(0.95);
   const [ttsPitch, setTtsPitch] = useState(1.0);
   const [showTtsSettings, setShowTtsSettings] = useState(false);
@@ -80,7 +107,7 @@ export function TranslatorPanel() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [input]);
+  }, [input, sourceLanguage, targetLanguage]);
 
   // Load history from localStorage
   useEffect(() => {
@@ -127,7 +154,7 @@ export function TranslatorPanel() {
       const res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: queryText }),
+        body: JSON.stringify({ text: queryText, sourceLanguage, targetLanguage }),
       });
 
       const data = await res.json();
@@ -136,8 +163,8 @@ export function TranslatorPanel() {
         throw new Error(data.error || 'Translation failed');
       }
 
-      setHindiOutput(data.hindi);
-      setEnglishOutput(data.english);
+      setHindiOutput(data.source || data.hindi);
+      setEnglishOutput(data.translation || data.english);
       setDetectedScript(data.detectedScript || 'hinglish');
 
       saveToHistory({
@@ -155,7 +182,7 @@ export function TranslatorPanel() {
   };
 
   // Dual Speaker Handler
-  const handleSpeak = (target: 'hindi' | 'english') => {
+  const handleSpeak = (target: 'hindi' | 'translation') => {
     if (speakingTarget === target) {
       stopSpeech();
       setSpeakingTarget(null);
@@ -163,7 +190,12 @@ export function TranslatorPanel() {
     }
 
     const textToSpeak = target === 'hindi' ? hindiOutput : englishOutput;
-    const lang = target === 'hindi' ? 'hi-IN' : 'en-US';
+    const sourceLocale = sourceLanguage === 'hi' || (sourceLanguage === 'auto' && detectedScript === 'hindi')
+      ? 'hi-IN'
+      : LANGUAGE_OPTIONS.find((language) => language.code === sourceLanguage)?.locale ?? navigator.language;
+    const lang = target === 'hindi'
+      ? sourceLocale
+      : LANGUAGE_OPTIONS.find((language) => language.code === targetLanguage)?.locale ?? 'en-US';
 
     if (!textToSpeak) return;
 
@@ -211,7 +243,9 @@ export function TranslatorPanel() {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
-      recognition.lang = 'hi-IN'; // Default to Hindi speech input
+      recognition.lang = sourceLanguage === 'auto'
+        ? navigator.language || 'en-US'
+        : LANGUAGE_OPTIONS.find((language) => language.code === sourceLanguage)?.locale ?? 'en-US';
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -227,8 +261,13 @@ export function TranslatorPanel() {
         }
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (event: { error?: string }) => {
         setIsListening(false);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setError('Microphone permission is blocked. Allow microphone access and try again.');
+        } else if (event.error !== 'aborted') {
+          setError('Voice input failed. Please try again or type your text.');
+        }
       };
 
       recognition.onend = () => {
@@ -260,18 +299,17 @@ export function TranslatorPanel() {
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300">
               <Languages className="w-3.5 h-3.5" />
-              Hindi / Hinglish Input
+              Any Language Input
             </span>
 
             {detectedScript && (
               <motion.span
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${
-                  detectedScript === 'hindi'
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                    : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
-                }`}
+                className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${detectedScript === 'hindi'
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                  : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
+                  }`}
               >
                 Detected: {detectedScript === 'hindi' ? 'Hindi (Devanagari)' : 'Hinglish (Roman)'}
               </motion.span>
@@ -279,6 +317,39 @@ export function TranslatorPanel() {
           </div>
 
           <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 rounded-xl bg-purple-500/10 border border-purple-500/25 px-3 py-2 text-xs text-purple-200">
+              <span className="hidden sm:inline">Translate from</span>
+              <select
+                value={sourceLanguage}
+                onChange={(event) => setSourceLanguage(event.target.value)}
+                className="bg-transparent text-white outline-none cursor-pointer"
+                aria-label="Translate from language"
+              >
+                {LANGUAGE_OPTIONS.map((language) => (
+                  <option key={language.code} value={language.code} className="bg-slate-900 text-white">
+                    {language.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/25 px-3 py-2 text-xs text-blue-200">
+              <Languages className="w-4 h-4 text-blue-400" />
+              <span className="hidden sm:inline">Translate to</span>
+              <select
+                value={targetLanguage}
+                onChange={(event) => setTargetLanguage(event.target.value)}
+                className="bg-transparent text-white outline-none cursor-pointer"
+                aria-label="Translate to language"
+              >
+                {LANGUAGE_OPTIONS.map((language) => (
+                  <option key={language.code} value={language.code} className="bg-slate-900 text-white">
+                    {language.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             {/* History Toggle */}
             <button
               onClick={() => setShowHistory(!showHistory)}
@@ -358,7 +429,7 @@ export function TranslatorPanel() {
                 handleTranslate();
               }
             }}
-            placeholder="Type Hinglish (e.g. 'aap kaise ho') or Hindi (e.g. 'आप कैसे हैं')...."
+            placeholder="Type text in any language..."
             rows={3}
             className="w-full bg-slate-950/60 text-white placeholder-slate-400 rounded-2xl p-4 pr-24 border border-white/15 focus:border-purple-400/60 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all resize-none text-base md:text-lg leading-relaxed shadow-inner"
           />
@@ -383,11 +454,10 @@ export function TranslatorPanel() {
             {/* Mic Speech Button */}
             <button
               onClick={toggleSpeechRecognition}
-              className={`p-2.5 rounded-xl transition-all ${
-                isListening
-                  ? 'bg-red-500/30 text-red-300 border border-red-500/50'
-                  : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
-              }`}
+              className={`p-2.5 rounded-xl transition-all ${isListening
+                ? 'bg-red-500/30 text-red-300 border border-red-500/50'
+                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
+                }`}
               title={isListening ? 'Listening...' : 'Voice Input (Microphone)'}
             >
               {isListening ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
@@ -402,11 +472,10 @@ export function TranslatorPanel() {
             whileTap={{ scale: 0.98 }}
             onClick={() => handleTranslate()}
             disabled={isLoading || !input.trim()}
-            className={`w-full sm:w-auto px-8 py-3 rounded-2xl font-medium text-sm md:text-base flex items-center justify-center gap-2 transition-all shadow-lg cursor-pointer ${
-              isLoading || !input.trim()
-                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5'
-                : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white border border-white/20 glass-glow-purple'
-            }`}
+            className={`w-full sm:w-auto px-8 py-3 rounded-2xl font-medium text-sm md:text-base flex items-center justify-center gap-2 transition-all shadow-lg cursor-pointer ${isLoading || !input.trim()
+              ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5'
+              : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white border border-white/20 glass-glow-purple'
+              }`}
           >
             {isLoading ? (
               <>
@@ -441,19 +510,18 @@ export function TranslatorPanel() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* Output Card 1: Hindi (Devanagari) */}
           <div
-            className={`rounded-2xl p-5 bg-slate-950/70 border transition-all relative overflow-hidden flex flex-col justify-between ${
-              speakingTarget === 'hindi'
-                ? 'border-purple-400/80 glass-glow-purple shadow-purple-900/30'
-                : 'border-white/10 hover:border-white/20'
-            }`}
+            className={`rounded-2xl p-5 bg-slate-950/70 border transition-all relative overflow-hidden flex flex-col justify-between ${speakingTarget === 'hindi'
+              ? 'border-purple-400/80 glass-glow-purple shadow-purple-900/30'
+              : 'border-white/10 hover:border-white/20'
+              }`}
           >
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-purple-400" />
-                  Hindi (Devanagari)
+                  {LANGUAGE_OPTIONS.find((language) => language.code === sourceLanguage)?.label} Input
                 </span>
-                <span className="text-[11px] text-slate-500 font-mono">hi-IN</span>
+                <span className="text-[11px] text-slate-500 font-mono">{LANGUAGE_OPTIONS.find((language) => language.code === sourceLanguage)?.locale}</span>
               </div>
 
               <div className="min-h-[90px] text-slate-100 font-sans text-lg md:text-xl leading-relaxed py-2">
@@ -463,7 +531,7 @@ export function TranslatorPanel() {
                     <div className="h-5 bg-purple-500/10 rounded w-1/2" />
                   </div>
                 ) : (
-                  hindiOutput || <span className="text-slate-600 italic text-base">Translation will appear here in Devanagari script...</span>
+                  hindiOutput || <span className="text-slate-600 italic text-base">Your original text will appear here...</span>
                 )}
               </div>
             </div>
@@ -474,14 +542,13 @@ export function TranslatorPanel() {
               <button
                 onClick={() => handleSpeak('hindi')}
                 disabled={!hindiOutput || isLoading}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${
-                  speakingTarget === 'hindi'
-                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/40 ring-2 ring-purple-400'
-                    : hindiOutput
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${speakingTarget === 'hindi'
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/40 ring-2 ring-purple-400'
+                  : hindiOutput
                     ? 'bg-purple-500/15 hover:bg-purple-500/25 text-purple-200 border border-purple-500/30'
                     : 'bg-white/5 text-slate-600 border border-white/5 cursor-not-allowed'
-                }`}
-                title="Listen in Hindi (hi-IN voice)"
+                  }`}
+                title="Listen to source text"
               >
                 {speakingTarget === 'hindi' ? (
                   <>
@@ -496,7 +563,7 @@ export function TranslatorPanel() {
                 ) : (
                   <>
                     <Volume2 className="w-4 h-4" />
-                    <span>Speak Hindi</span>
+                    <span>Speak Source</span>
                   </>
                 )}
               </button>
@@ -525,19 +592,18 @@ export function TranslatorPanel() {
 
           {/* Output Card 2: English */}
           <div
-            className={`rounded-2xl p-5 bg-slate-950/70 border transition-all relative overflow-hidden flex flex-col justify-between ${
-              speakingTarget === 'english'
-                ? 'border-blue-400/80 glass-glow-blue shadow-blue-900/30'
-                : 'border-white/10 hover:border-white/20'
-            }`}
+            className={`rounded-2xl p-5 bg-slate-950/70 border transition-all relative overflow-hidden flex flex-col justify-between ${speakingTarget === 'translation'
+              ? 'border-blue-400/80 glass-glow-blue shadow-blue-900/30'
+              : 'border-white/10 hover:border-white/20'
+              }`}
           >
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-blue-400" />
-                  English Translation
+                  {LANGUAGE_OPTIONS.find((language) => language.code === targetLanguage)?.label} Translation
                 </span>
-                <span className="text-[11px] text-slate-500 font-mono">en-US</span>
+                <span className="text-[11px] text-slate-500 font-mono">{LANGUAGE_OPTIONS.find((language) => language.code === targetLanguage)?.locale}</span>
               </div>
 
               <div className="min-h-[90px] text-slate-100 font-sans text-lg md:text-xl leading-relaxed py-2">
@@ -547,7 +613,7 @@ export function TranslatorPanel() {
                     <div className="h-5 bg-blue-500/10 rounded w-3/5" />
                   </div>
                 ) : (
-                  englishOutput || <span className="text-slate-600 italic text-base">Translation will appear here in English...</span>
+                  englishOutput || <span className="text-slate-600 italic text-base">Translation will appear here...</span>
                 )}
               </div>
             </div>
@@ -556,18 +622,17 @@ export function TranslatorPanel() {
             <div className="flex items-center justify-between pt-4 mt-2 border-t border-white/5">
               {/* Dual Speaker Button (English) */}
               <button
-                onClick={() => handleSpeak('english')}
+                onClick={() => handleSpeak('translation')}
                 disabled={!englishOutput || isLoading}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${
-                  speakingTarget === 'english'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/40 ring-2 ring-blue-400'
-                    : englishOutput
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${speakingTarget === 'translation'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/40 ring-2 ring-blue-400'
+                  : englishOutput
                     ? 'bg-blue-500/15 hover:bg-blue-500/25 text-blue-200 border border-blue-500/30'
                     : 'bg-white/5 text-slate-600 border border-white/5 cursor-not-allowed'
-                }`}
-                title="Listen in English (en-US voice)"
+                  }`}
+                title={`Listen in ${LANGUAGE_OPTIONS.find((language) => language.code === targetLanguage)?.label} voice`}
               >
-                {speakingTarget === 'english' ? (
+                {speakingTarget === 'translation' ? (
                   <>
                     <VolumeX className="w-4 h-4 text-white animate-pulse" />
                     <span>Stop</span>
@@ -580,7 +645,7 @@ export function TranslatorPanel() {
                 ) : (
                   <>
                     <Volume2 className="w-4 h-4" />
-                    <span>Speak English</span>
+                    <span>Speak {LANGUAGE_OPTIONS.find((language) => language.code === targetLanguage)?.label}</span>
                   </>
                 )}
               </button>
@@ -590,7 +655,7 @@ export function TranslatorPanel() {
                 onClick={() => handleCopy('english')}
                 disabled={!englishOutput || isLoading}
                 className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Copy English Text"
+                title="Copy translated text"
               >
                 {copiedTarget === 'english' ? (
                   <>

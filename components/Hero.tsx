@@ -1,13 +1,24 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { BlurText } from './BlurText';
 import { TranslatorPanel } from './TranslatorPanel';
-import { Sparkles, Zap, Volume2, ShieldCheck, Globe2, ArrowRight } from 'lucide-react';
+import { Sparkles, Zap, Volume2, ShieldCheck, Globe2, ArrowRight, Bot, Moon, Sun } from 'lucide-react';
 
 export function Hero() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isLightMode, setIsLightMode] = useState(false);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('aura_theme');
+    setIsLightMode(savedTheme === 'light');
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('light-theme', isLightMode);
+    localStorage.setItem('aura_theme', isLightMode ? 'light' : 'dark');
+  }, [isLightMode]);
 
   // Animated space particle background canvas as fallback & visual enhancement
   useEffect(() => {
@@ -97,7 +108,7 @@ export function Hero() {
       />
 
       {/* Deep Gradient Radial Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-slate-950/90 z-0 pointer-events-none" />
+      <div className={`absolute inset-0 z-0 pointer-events-none ${isLightMode ? 'bg-gradient-to-b from-slate-100/80 via-sky-100/55 to-white/90' : 'bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-slate-950/90'}`} />
 
       {/* Navbar (Fixed z-50) */}
       <header className="fixed top-0 left-0 right-0 z-50 px-4 md:px-8 py-4 flex items-center justify-between pointer-events-none">
@@ -114,13 +125,23 @@ export function Hero() {
               Hinglish AI
             </span>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsLightMode((current) => !current)}
+            className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/15 bg-slate-950/55 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur-xl transition-colors hover:bg-slate-900/75 light-theme:border-slate-300/70 light-theme:bg-white/75 light-theme:text-slate-700 light-theme:hover:bg-white"
+            aria-label={isLightMode ? 'Switch to dark mode' : 'Switch to light mode'}
+            title={isLightMode ? 'Switch to dark mode' : 'Switch to light mode'}
+          >
+            {isLightMode ? <Moon className="h-4 w-4 text-indigo-500" /> : <Sun className="h-4 w-4 text-amber-300" />}
+            <span className="hidden sm:inline">{isLightMode ? 'Dark' : 'Light'}</span>
+          </button>
         </div>
       </header>
 
       {/* Main Split Content Area (50/50 Left & Right) */}
       <main className="relative z-10 pt-24 lg:pt-28 pb-4 flex-1 flex flex-col justify-center max-w-7xl mx-auto px-4 md:px-8 w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
-          
+
           {/* LEFT SIDE COLUMN (Hero Text, Badges & Feature Cards) */}
           <div className="lg:col-span-5 flex flex-col items-start text-left">
             {/* Liquid Glass Badge */}
@@ -142,15 +163,32 @@ export function Hero() {
               />
             </div>
 
-            {/* Subheading Paragraph */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              className="text-slate-300 text-sm md:text-base mb-6 font-sans font-light leading-relaxed"
+            {/* AI assistant avatar */}
+            <motion.div
+              initial={{ opacity: 0, x: -18, scale: 0.96 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              transition={{ duration: 0.7, delay: 0.45 }}
+              className="mb-6 flex items-center gap-4"
             >
-              Type in romanized Hinglish (<span className="text-purple-300 italic">"aap kaise ho"</span>) or Devanagari Hindi. Get accurate Devanagari text and English translations with independent dual-accent text-to-speech.
-            </motion.p>
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-cyan-300/40 bg-slate-950/80 shadow-[0_0_35px_rgba(34,211,238,0.25)]">
+                <div className="absolute inset-1 rounded-[1.4rem] border border-cyan-300/20 animate-pulse" />
+                <div className="relative flex h-12 w-12 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300 via-blue-400 to-purple-500 shadow-lg shadow-cyan-500/30">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-slate-950 shadow-[0_0_7px_rgba(255,255,255,0.9)]" />
+                    <span className="h-2 w-2 rounded-full bg-slate-950 shadow-[0_0_7px_rgba(255,255,255,0.9)]" />
+                  </div>
+                  <span className="mt-2 h-1 w-5 rounded-full bg-slate-950/80" />
+                </div>
+                <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-slate-950 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Bot className="h-4 w-4 text-cyan-300" />
+                  Aura AI
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Ready to translate and speak</p>
+              </div>
+            </motion.div>
 
             {/* Stacked Feature Cards on Left */}
             <motion.div
